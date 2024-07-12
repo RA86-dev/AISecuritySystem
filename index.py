@@ -67,7 +67,6 @@ try:
 except Exception as e:
     print(f"Error loading known faces: {str(e)}")
     known_face_encodings, known_face_names = [], []
-known_face_encodings, known_face_names = load_known_faces()
 def send_email(subject, body, image_path, receiver):
     sender_email = os.getenv('email')
     sender_password = os.getenv('email_password')
@@ -202,6 +201,8 @@ while True:
     fai = False
     # Face recognition
     if getenv('face_recognition_flag') == "true":
+        
+        known_face_encodings, known_face_names = load_known_faces()
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         face_locations = face_recognition.face_locations(rgb_frame)
         face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
