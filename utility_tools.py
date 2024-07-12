@@ -32,13 +32,13 @@ def customize_settings():
         flag_face_rcg = False
     with open('.env','w') as env:
         env.write(f'''
-email_password={email_password}
-email={email}
-model={model}
-message_subject={message_subject}
-detect_person_delay={detect_person_delay}
+email_password="{email_password}"
+email="{email}"
+model="{model}"
+message_subject="{message_subject}"
+detect_person_delay="{detect_person_delay}"
 
-face_recognition_flag={flag_face_rcg}
+face_recognition_flag="{flag_face_rcg}"
 ''')
         env.close()
     print('Verified and confirmed.')
