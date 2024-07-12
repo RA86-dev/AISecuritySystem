@@ -1,3 +1,4 @@
+import os
 from ultralytics import YOLO
 import cv2
 def detect_camera_ids(): 
@@ -24,9 +25,11 @@ def customize_settings():
     print('READ more in README.')
     enable = input('Enable Face Recognition (BETA): y/n').lower()
     if enable == "y" or enable == "yes":
-        flag_face_rcg = "true"
+        flag_face_rcg = True
+        if not os.path.isdir('known_faces'):
+            os.mkdir('known_faces')
     else:
-        flag_face_rcg = "false"
+        flag_face_rcg = False
     with open('.env','w') as env:
         env.write(f'''
 email_password={email_password}
@@ -47,6 +50,7 @@ Utility Tools:
       1. Detect Camera Feed Indexes
       2. Customize settings
       3. Download Model
+      4. Quit()
 
 
 
@@ -61,3 +65,5 @@ if __name__ == "__main__":
         elif int(i) == 3:
             model = input('Model name:')
             download_model(model)
+        elif int(i) == 4:
+            exit(401)
