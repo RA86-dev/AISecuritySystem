@@ -238,12 +238,13 @@ while True:
                                         print('Did not detect a face in the known library.')
                                 except Exception as e:
                                     print(f"Error in face recognition for {filename}:{str(e)}")
+                        os.remove('temp.jpg')
                     
 
     if activate_ollava:
         llava_description, image_path = process_frame_with_llava(frame)
         print("Llava description:", llava_description)
-        edx = f"{llava_description} \n Items that the AI Detected: {', '.join(items)} \n AI Face recognition: {face_recognition_store_info}"
+        edx = f"{llava_description} \n Items that the AI Detected: {', '.join(items)}"
         if image_path:
             for email in emails:
                 send_email(getenv('message_subject'), edx, image_path, email)
