@@ -37,8 +37,11 @@ def write_logs(text):
 
 def get_camera_url():
     return int(input('Camera Index:'))
-             
-emails = ['rw98651@gmail.com', 'xjkevinw@gmail.com', 'amyhyuan1126@gmail.com']
+emails = []
+i = int(input('How many emails to send to?'))
+for x in range(i):
+    email = input(f"Email #{x + 1}: ")
+    emails.append(email)
 write_logs(f"Emails: {emails}")
 def load_known_faces():
     known_face_encodings = []
