@@ -6,3 +6,4 @@ yagmail
 python-dotenv
 numpy
 opencv-python
+deepface
