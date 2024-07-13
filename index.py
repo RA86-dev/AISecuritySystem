@@ -243,7 +243,7 @@ while True:
     if activate_ollava:
         llava_description, image_path = process_frame_with_llava(frame)
         print("Llava description:", llava_description)
-        edx = f"{llava_description} \n Items that the AI Detected: {', '.join(items)}"
+        edx = f"{llava_description} \n Items that the AI Detected: {', '.join(items)} \n AI Face recognition: {face_recognition_store_info}"
         if image_path:
             for email in emails:
                 send_email(getenv('message_subject'), edx, image_path, email)
