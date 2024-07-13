@@ -7,13 +7,13 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 import random
+from deepface import DeepFace
 
 import ollama
 import base64
 import time
 import json as js
 import numpy as np
-import face_recognition
 import yagmail
 from dotenv import load_dotenv
 import yagmail.oauth2  # Add this import
@@ -22,7 +22,10 @@ from os import getenv
 import time
 import readline as rl
 import mpmath
+from deepface import DeepFace
 from urllib.parse import quote
+known_faces_dir = 'known_faces'
+
 load_dotenv()
 zr=quote(time.asctime())
 # Open a log file
@@ -37,39 +40,21 @@ def write_logs(text):
 
 def get_camera_url():
     return int(input('Camera Index:'))
+             
 emails = []
-i = int(input('How many emails to send to?'))
-for x in range(i):
-    email = input(f"Email #{x + 1}: ")
+for i in range(int(input('What is the number of emails to send to?'))):
+    email = input(f'Email #{i + 1}:')
     emails.append(email)
 write_logs(f"Emails: {emails}")
 def load_known_faces():
-    known_face_encodings = []
-    known_face_names = []
-    
-    # Load known faces from image files
+    known_faces = []
     for filename in os.listdir('known_faces'):
         if filename.endswith(('.jpg', '.jpeg', '.png')):
             image_path = f'known_faces/{filename}'
-            image = face_recognition.load_image_file(image_path)
-            encodings = face_recognition.face_encodings(image)
-            if encodings:
-                encoding = encodings[0]
-                known_face_encodings.append(encoding)
-                name = os.path.splitext(filename)[0]
-                known_face_names.append(name)
-                print(f"Loaded face: {name}")
-            else:
-                print(f"No face found in {filename}")
-    
-    print(f"Total known faces loaded: {len(known_face_names)}")
-    return known_face_encodings, known_face_names
+            known_faces.append((image_path, filename.split('.')[0]))  # Tuple of (path, name)
+    return known_faces
 
-try:
-    known_face_encodings, known_face_names = load_known_faces()
-except Exception as e:
-    print(f"Error loading known faces: {str(e)}")
-    known_face_encodings, known_face_names = [], []
+known_faces = load_known_faces()
 def send_email(subject, body, image_path, receiver):
     sender_email = os.getenv('email')
     sender_password = os.getenv('email_password')
@@ -154,6 +139,7 @@ def attempt_connection(url, max_attempts=5, delay=2):
             cap = cv2.VideoCapture(url)
         else:
             cap = cv2.VideoCapture(url)
+            write_logs('Finsihed creating cap for videoCapture')
         
         if not cap.isOpened():
             print(f"Failed to open camera. Error code: {cap.get(cv2.CAP_PROP_BACKEND)}")
@@ -203,35 +189,7 @@ while True:
     dm.write('Generated model...')
     fai = False
     # Face recognition
-    if getenv('face_recognition_flag') == "true":
-        
-        known_face_encodings, known_face_names = load_known_faces()
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        face_locations = face_recognition.face_locations(rgb_frame)
-        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
-
-        for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-            name = "Unknown"
-            if len(known_face_encodings) > 0:
-                matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
-                face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
-                
-                if len(face_distances) > 0:
-                    best_match_index = np.argmin(face_distances)
-                    if matches[best_match_index]:
-                        name = known_face_names[best_match_index]
-                
-                print(f"Face detected. Best match: {name}, Distance: {face_distances[best_match_index] if len(face_distances) > 0 else 'N/A'}")
-            else:
-                print("No known faces loaded. Unable to perform recognition.")
-
-            cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
-            cv2.putText(frame, name, (left + 6, bottom - 6), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255), 1)
-            
-            if name != "Unknown":
-                activate_ollava = True
-                fai = True
-                dm.write(f'\n Detected a known person: {name}')
+    
     # Existing YOLO detection code
     for result in results:
         boxes = result.boxes.cpu().numpy()
@@ -255,6 +213,32 @@ while True:
                 if class_name == 'person':
                     fai = True
                     dm.write('\n Detected a person!')
+                    if getenv('face_recognition_flag') == True:
+                        cv2.imwrite("temp.jpg",frame)
+                        face_recognition_store_info = ""
+                        print('AI Face Recognition Activated')
+                        for filename in os.listdir(known_faces_dir):
+                            if filename.endswith((".jpg",".jpeg",".png")):
+                                known_face_path = os.path.join(known_faces_dir,filename)
+                                try:
+                                    # Try to perform face detection
+                                    result = DeepFace.verify("temp.jpg",known_face_path,enforce_detection=False)
+                                    if result['verified']:
+                                        print('detected a person!')
+                                        print(f"Match found: {filename}")
+                                        print(f"Similarity score: {result['distance']}")
+                                        print(f"Threshold: {result['threshold']}")
+                                        print(f"Model: {result['model']}")
+                                        print(f"Detector backend: {result['detector_backend']}")
+                                        print("-------------------------")
+                                        face_recognition_store_info += f"Match Found: {filename} \n"
+                                        face_recognition_store_info += f"Similiarity Score: {result['distance']} \n"
+                                        
+                                    else:
+                                        print('Did not detect a face in the known library.')
+                                except Exception as e:
+                                    print(f"Error in face recognition for {filename}:{str(e)}")
+                    
 
     if activate_ollava:
         llava_description, image_path = process_frame_with_llava(frame)
