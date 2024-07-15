@@ -1,7 +1,19 @@
-import face_recognition
+
 if not __name__ == "__main__":
     print('Please do not import libraries.')
     quit()
+
+import math as mpt
+import os
+import cv2
+import numpy as np
+from ultralytics import YOLO
+import random
+from deepface import DeepFace
+
+import ollama
+import base64
+import time
 import os
 import cv2
 import numpy as np
@@ -15,16 +27,20 @@ import time
 import json as js
 import numpy as np
 import yagmail
+
 from dotenv import load_dotenv
 import yagmail.oauth2  # Add this import
 from time import asctime
 from os import getenv
 import time
-import readline as rl
-import mpmath
 from deepface import DeepFace
 from urllib.parse import quote
+import threading as thr
+
 known_faces_dir = 'known_faces'
+def clear():
+    os.system('clear')
+print(f"Version DeepFace: {DeepFace.__version__}")
 
 load_dotenv()
 zr=quote(time.asctime())
@@ -40,11 +56,14 @@ def write_logs(text):
 
 def get_camera_url():
     return int(input('Camera Index:'))
-             
 emails = []
-for i in range(int(input('What is the number of emails to send to?'))):
-    email = input(f'Email #{i + 1}:')
-    emails.append(email)
+number_of_emails = input('Number of emails that are going to be sent to:')
+for i in range(int(number_of_emails)):
+    email = input(f'Email #{i + 1}: ')
+    emails.append(str(email))
+    
+write_logs(f"Emails: {emails}")
+
 write_logs(f"Emails: {emails}")
 def load_known_faces():
     known_faces = []
@@ -55,6 +74,46 @@ def load_known_faces():
     return known_faces
 
 known_faces = load_known_faces()
+def generate_information_race_emotion(name,image_path):
+    try:
+        # analysis = race,age,gender
+        objs = DeepFace.analyze(img_path=image_path, actions=['age', "gender", "race",], enforce_detection=False)
+        print(f"Analysis for {name}:")
+        objs2 = objs[0]
+        print(f"Age: {objs2['age']}")
+        print(f"Gender: ")
+        print(f"Chance of Being a woman: {objs2['gender']['Woman']}%")
+        print(f"Man: {objs2['gender']['Man']}%")
+        print(f"Dominant Gender: {objs2['dominant_gender']}")
+        print(f"Detected Race: ")
+        race_json = objs2['race']
+        print(f"Asian: {race_json['asian']}%")
+        print(f"Indian: {race_json['indian']}%")
+        print(f"Black: {race_json['black']}%")
+        print(f"White: {race_json['white']}%")
+        print(f"Middle Eastern: {race_json['middle eastern']}%")
+        print(f"Latino Hispanic: {race_json['latino hispanic']}%")
+        print(f"Dominant Race: {objs2['dominant_race']}")
+        return {
+            "age":objs2['age'],
+            "dominantGender":objs2['dominant_gender'],
+            "DominantRace":objs2['dominant_race'],
+            "Percent to be a man":objs2['gender']['man'],
+            "Percent to be a woman":objs2['gender']['woman'],
+
+        },{
+            "info":"Race information (percentage)",
+            "asian":race_json['asian'],
+            "indian":race_json['indian'],
+            "black":race_json['black'],
+            "white":race_json['white'],
+            "Middle Eastern":race_json['middle eastern'],
+            "Latino Hispanic":race_json['latino hispanic'],
+
+        }
+    except Exception as e:
+        print(f"Error processing {name}: {str(e)}")
+        print("\n")
 def send_email(subject, body, image_path, receiver):
     sender_email = os.getenv('email')
     sender_password = os.getenv('email_password')
@@ -77,21 +136,9 @@ def send_email(subject, body, image_path, receiver):
     except yagmail.error.YagAddressError as e:
         print(f"Error with email address: {str(e)}")
 
-known_face_encodings = [
 
-]
-known_face_names = [
-
-]
 def get_camera_url():
     return int(input('Camera Index:'))
-emails = []
-number_of_emails = input('Number of emails that are going to be sent to:')
-for i in range(int(number_of_emails)):
-    email = input(f'Email #{i + 1}: ')
-    emails.append(str(email))
-    
-write_logs(f"Emails: {emails}")
 
 def send_email(subject, body, image_path, receiver):
     sender_email = os.getenv('email')
@@ -120,13 +167,14 @@ def send_email(subject, body, image_path, receiver):
         print(f"Error sending email: {str(e)}")
 
 def process_frame_with_llava(frame):
+
     image_path = 'image.png'
     cv2.imwrite(image_path, frame)
     _, buffer = cv2.imencode('.jpg', frame)
     img_str = base64.b64encode(buffer).decode('utf-8')
     try:
-        response = ollama.generate(model='llava', 
-                                   prompt='You are AI Security. When an person is detected, (it does not provide a name. The name is unkown always,due to the program not being able to identify people.). The image below has either an image of a person, a car, or a fire. Your goal is to provide people with a brief (under 100 words ) description of what is going on through a camera. Good luck!', 
+        response = ollama.generate(model='llava',
+                                   prompt='You are AI Security. When an person is detected, (it does not provide a name. The name is unkown always,due to the program not being able to identify people.). The image below has either an image of a person, a car, or a fire. Your goal is to provide people with a brief (under 100 words ) description of what is going on through a camera. Good luck!',
                                    images=[img_str])
         return response['response'], image_path
     except Exception as e:
@@ -139,7 +187,7 @@ def attempt_connection(url, max_attempts=5, delay=2):
             cap = cv2.VideoCapture(url)
         else:
             cap = cv2.VideoCapture(url)
-            write_logs('Finsihed creating cap for videoCapture')
+            write_logs('Finished creating cap for videoCapture')
         
         if not cap.isOpened():
             print(f"Failed to open camera. Error code: {cap.get(cv2.CAP_PROP_BACKEND)}")
@@ -206,14 +254,16 @@ while True:
         boxes = result.boxes.cpu().numpy()
         for box in boxes:
             class_id = int(box.cls[0])
-            class_name = result.names[class_id]
+            class_name = model.names[class_id]
             if class_name in ['person', 'fire', 'cat', 'dog', 'motorcycle', 'airplane', 'bird', 'bus']:
                 activate_ollava = True
                 items.append(class_name)
                 if class_name == 'person':
                     fai = True
                     dm.write('\n Detected a person!')
-                    if getenv('face_recognition_flag') == True:
+
+                    if getenv('face_recognition_flag') == "True":
+
                         cv2.imwrite("temp.jpg",frame)
                         face_recognition_store_info = ""
                         print('AI Face Recognition Activated')
@@ -223,19 +273,27 @@ while True:
                                 try:
                                     # Try to perform face detection
                                     result = DeepFace.verify("temp.jpg",known_face_path,enforce_detection=False)
+
+                                    information,raceInformation = generate_information_race_emotion("Information","temp.jpg")
                                     if result['verified']:
+
                                         print('detected a person!')
                                         print(f"Match found: {filename}")
+
                                         print(f"Similarity score: {result['distance']}")
                                         print(f"Threshold: {result['threshold']}")
                                         print(f"Model: {result['model']}")
                                         print(f"Detector backend: {result['detector_backend']}")
-                                        print("-------------------------")
+                                        for key,value in information.items():
+                                            face_recognition_store_info += f"{key} - {value} \n"
+                                            print(f"{key} - {value} \n")
+                                        for key,value in raceInformation.items():
+                                            face_recognition_store_info += f"{key} - {value}% \n"
+                                            print(f"{key} - {value}%")
+                                        print("------------------------")
                                         face_recognition_store_info += f"Match Found: {filename} \n"
                                         face_recognition_store_info += f"Similiarity Score: {result['distance']} \n"
-                                        
-                                    else:
-                                        print('Did not detect a face in the known library.')
+                                        face_recognition_store_info += f"Model: {result['model']} \n"
                                 except Exception as e:
                                     print(f"Error in face recognition for {filename}:{str(e)}")
                         os.remove('temp.jpg')
@@ -243,19 +301,39 @@ while True:
 
     if activate_ollava:
         llava_description, image_path = process_frame_with_llava(frame)
+
         print("Llava description:", llava_description)
-        edx = f"{llava_description} \n Items that the AI Detected: {', '.join(items)}"
+        edx = f"{llava_description} \n Items that the AI Detected: {', '.join(items)} \n {face_recognition_store_info}"
         if image_path:
             for email in emails:
                 send_email(getenv('message_subject'), edx, image_path, email)
- 
+
         if fai:
             dm.write(f'\n Sleeping for {getenv("detect_person_delay")}')
             time.sleep(float(getenv('detect_person_delay')))
-
     cv2.imshow('Camera Feed', frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
+
+known_faces_dir = 'known_faces'
+def clear():
+    os.system('clear')
+print(f"Version DeepFace: {DeepFace.__version__}")
+print('=' * 50)
+print(f"AI Security System")
+
+print('=' * 50)
+
+load_dotenv()
+zr=quote(time.asctime())
+# Open a log file
+logs = open(f'logs{quote(zr)}.txt', 'w')
+logs.write('-|ed')
+dm = open(f'logs{quote(zr)}.txt', 'a')
+
+def write_logs(text):
+    dm.write(str(text))
+
 
 cap.release()
 cv2.destroyAllWindows()
